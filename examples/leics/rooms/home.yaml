@@ -11,8 +11,8 @@ cards:
   - weather
   - people
   - security
-  - agenda
-  - energy          # c'è solo con un sensore di potenza in Impostazioni → Energia
+  #- agenda
+  #- energy          # c'è solo con un sensore di potenza in Impostazioni → Energia
   # un'entità qualsiasi: prende la scheda giusta per il suo tipo (luce, clima, media, sensore …)
   # - climate.soggiorno
   # con accanto le impostazioni della scheda (le stesse di ⋯ → Imposta scheda)
