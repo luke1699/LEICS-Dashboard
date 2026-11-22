@@ -4,7 +4,7 @@
 # Niente build: modifichi un file e ricarichi il browser (o aspetti `reload` secondi).
 
 # Rilegge i file ogni N secondi mentre lavori (comodo con File Editor / Studio Code Server). 0 o assente = solo all'apertura.
-reload: 5
+reload: 0
 
 # Impostazioni del pannello: stesse chiavi dell'export JSON (Impostazioni → Esporta). Hanno la precedenza su quelle
 # salvate dall'interfaccia, quindi lascia qui solo quello che vuoi tenere sotto controllo nei file.
@@ -19,7 +19,8 @@ settings:
 # automatiseringen, sensoren, energie, cameras, systeem) oppure link. Una pagina non elencata resta raggiungibile dal suo URL.
 menu:
   - consumi
-  - panoramica
+  - split
+  - energie
   - energie
   - sensoren
   - automatiseringen
@@ -27,13 +28,15 @@ menu:
   - { label: Grafici, sub: storico di Home Assistant, icon: mdi:chart-line, path: /history }
 
 # Le pagine da caricare: "consumi" = pages/consumi.yaml. Una pagina con la chiave di una integrata la sostituisce.
-pages: [consumi, panoramica]
+pages: [consumi, split]
 
 # Le schede della home ("home") e delle stanze (id, slug o nome dell'area). Senza voce: schede automatiche come prima.
 rooms:
-  home: rooms/home.yaml
-  soggiorno: rooms/soggiorno.yaml
+  #home: rooms/home.yaml
+  #soggiorno: rooms/soggiorno.yaml
 
 # Componenti JS tuoi, caricati a runtime (nessuna build). Vedi components/barre.js.
 components:
   - components/barre.js
+  - components/split-popups.js
+  - components/split-calendario.js
