@@ -1,44 +1,146 @@
-# Pagina "Consumi": prima era codice in src/pages.js (funzione consumi + costante LOADS), ora è solo contenuto.
-# URL: /<pannello>/consumi
+# Pagina "Consumi" con il controllo carichi (dalla plancia "Impostazioni Energia").
+# Va in /config/www/leics/pages/consumi.yaml. Nessuna build: salva e ricarica.
 
 title: Consumi
-description: potenza, costo, grandi consumatori    # testo sotto il titolo nel menu "Altro"
+description: potenza, controllo carichi, impostazioni
 icon: mdi:flash-outline
-ha: /energy                                        # pulsante "Apri in Home Assistant" (ometti per toglierlo)
-
-# Riga sopra il titolo. [[ entità ]] = valore attuale (| n = decimali). $energy.* = i sensori di Impostazioni → Energia.
-sub: "[[ $energy.power | 0 ]] W · [[ $energy.today ]] kWh"
+ha: /energy
+sub: "[[ sensor.energy_power_sh2 | 0 ]] W · [[ sensor.costo_mese_consumi | 2 ]] € questo mese"
 
 blocks:
+  # ---------- potenza (al posto dei due flex-horseshoe) ----------
   - type: kpis
     items:
-      - { entity: $energy.power, label: Ora, name: potenza, icon: mdi:flash-outline, decimals: 0, highlight: true, history: 3 }
-      - { entity: $energy.today, label: Oggi, name: consumo, icon: mdi:home-import-outline }
-      # kWh × prezzo di Impostazioni → Energia; con un prezzo fisso scrivi scale: 0.28
-      - { entity: $energy.today, label: Costo, name: oggi, icon: mdi:cash, scale: $energy.price, prefix: "€ ", unit: "", decimals: 2, tap: none }
+      - entity: sensor.energy_power_sh2
+        label: Uso
+        name: potenza attuale
+        icon: mdi:flash-outline
+        decimals: 0
+        bar: { max: 3300 }                 # barra 0–3300 W come il ferro di cavallo
+        highlight: { above: 1600 }         # tessera evidenziata da 1600 W in su
+        history: 3
+      - entity: sensor.potenza_carichi_sospesa
+        label: Sospesa
+        name: potenza carichi staccati
+        icon: mdi:flash-off-outline
+        decimals: 1
+        bar: { max: 3300 }
+        highlight: { above: 0 }
+      - entity: sensor.costo_mese_consumi
+        label: Costo
+        name: questo mese
+        icon: mdi:cash
+        prefix: "€ "
+        unit: ""
+        decimals: 2
 
+  # ---------- controllo carichi ----------
   - type: heading
-    text: Distacco carichi
+    text: Controllo carichi
+  - type: list
+    title: Power control
+    items:
+      - { entity: input_boolean.attiva_power_control, name: Attiva Power Control, icon: mdi:power-plug-battery-outline }
+      - { entity: input_boolean.impostazioni_power_control, name: Mostra impostazioni carichi, icon: mdi:tune-variant }
+  - type: list
+    title: Allerta contatore
+    items:
+      - { entity: input_boolean.power_automations_alert, name: Allerta contatore, icon: mdi:alert-outline }
+      - { entity: input_boolean.impostazioni_energy_control, name: Mostra impostazioni allerta, icon: mdi:tune-variant }
 
-  # Il tuo componente (src/components/distacco-carichi.js). I nomi qui sotto sono quelli che prima stavano in LOADS:
-  # se i tuoi helper si chiamano diversamente cambia solo questo file.
+  # Tre tessere che aprono i popup (soglie, sensori di potenza, interruttori dei 10 carichi).
+  # Il componente accetta entity_id oppure nomi; {n} = numero del carico.
   - type: distacco-carichi
-    house: Potenza Casa
-    limit: Potenza Massima Immediato
+    title: Controllo carichi
+    house: input_select.potenza_carichi
+    limit: input_number.potenza_massima_immediato
     numbers:
-      - { name: Potenza Massima Ritardo, icon: mdi:chart-bell-curve }
-      - { name: Ritardo Tra Distacchi, icon: mdi:timer-sand }
-      - { name: Potenza Massima Immediato, icon: mdi:chart-bell-curve }
-      - { name: Minuti dopo si riattivano i carichi, icon: mdi:timer-sand }
-      - { name: Secondi tra i distacchi, icon: mdi:timer-sand }
-      - { name: Minuti tra riattivazioni, icon: mdi:timer-sand }
-    power: "Potenza - Carico {n}"
-    switches: "Switch - Carico {n}"
+      - { name: input_number.potenza_massima_ritardato, icon: mdi:chart-bell-curve }
+      - { name: input_number.tempo_stop_ritardato, icon: mdi:timer-sand }
+      - { name: input_number.potenza_massima_immediato, icon: mdi:chart-bell-curve }
+      - { name: input_number.tempo_start, icon: mdi:timer-sand }
+      - { name: input_number.attesa_stop, icon: mdi:timer-sand }
+      - { name: input_number.attesa_start, icon: mdi:timer-sand }
+    power: "input_select.carico_{n}_potenza"
+    switches: "input_select.carico_{n}_switch"
     slots: 10
 
-  # Lista dinamica: tutti i sensori in W sopra 0, dal più alto, esclusi contatore di casa, solare e batteria
+  # ---------- impostazioni carichi: visibili con "Mostra impostazioni carichi" acceso
+  #            (come il pop-up bubble-card #impostazionienergia) ----------
+  - type: section
+    title: Impostazione carichi
+    visible: { entity: input_boolean.impostazioni_power_control, state: "on" }
+    blocks:
+      - type: list
+        title: Soglie e tempi
+        items:
+          - { entity: input_select.potenza_carichi, name: Potenza casa, icon: mdi:lightning-bolt }
+          - { entity: input_number.potenza_massima_ritardato, icon: mdi:chart-bell-curve }
+          - { entity: input_number.tempo_stop_ritardato, icon: mdi:timer-sand }
+          - { entity: input_number.potenza_massima_immediato, icon: mdi:chart-bell-curve }
+          - { entity: input_number.tempo_start, icon: mdi:timer-sand }
+          - { entity: input_number.attesa_stop, icon: mdi:timer-sand }
+          - { entity: input_number.attesa_start, icon: mdi:timer-sand }
+      - type: list
+        title: Sensori potenza carichi
+        items:
+          - { entity: input_select.carico_1_potenza, icon: mdi:numeric-1-circle }
+          - { entity: input_select.carico_2_potenza, icon: mdi:numeric-2-circle }
+          - { entity: input_select.carico_3_potenza, icon: mdi:numeric-3-circle }
+          - { entity: input_select.carico_4_potenza, icon: mdi:numeric-4-circle }
+          - { entity: input_select.carico_5_potenza, icon: mdi:numeric-5-circle }
+          - { entity: input_select.carico_6_potenza, icon: mdi:numeric-6-circle }
+          - { entity: input_select.carico_7_potenza, icon: mdi:numeric-7-circle }
+          - { entity: input_select.carico_8_potenza, icon: mdi:numeric-8-circle }
+          - { entity: input_select.carico_9_potenza, icon: mdi:numeric-9-circle }
+          - { entity: input_select.carico_10_potenza, icon: mdi:numeric-10-circle }
+      - type: list
+        title: Interruttori carichi
+        items:
+          - { entity: input_select.carico_1_switch, icon: mdi:numeric-1-circle }
+          - { entity: input_select.carico_2_switch, icon: mdi:numeric-2-circle }
+          - { entity: input_select.carico_3_switch, icon: mdi:numeric-3-circle }
+          - { entity: input_select.carico_4_switch, icon: mdi:numeric-4-circle }
+          - { entity: input_select.carico_5_switch, icon: mdi:numeric-5-circle }
+          - { entity: input_select.carico_6_switch, icon: mdi:numeric-6-circle }
+          - { entity: input_select.carico_7_switch, icon: mdi:numeric-7-circle }
+          - { entity: input_select.carico_8_switch, icon: mdi:numeric-8-circle }
+          - { entity: input_select.carico_9_switch, icon: mdi:numeric-9-circle }
+          - { entity: input_select.carico_10_switch, icon: mdi:numeric-10-circle }
+
+  # ---------- impostazioni allerta: visibili con "Mostra impostazioni allerta" acceso
+  #            (come il pop-up #impostazionienergiacpntrol) ----------
+  - type: section
+    title: Impostazioni allerta contatore
+    visible: { entity: input_boolean.impostazioni_energy_control, state: "on" }
+    blocks:
+      - type: list
+        title: Contatore
+        items:
+          - { entity: input_select.selettore_kw_contatore, name: Selettore kW, icon: mdi:meter-electric-outline }
+          - { entity: input_select.accensione_automatica_carico, name: Accensione automatica, icon: mdi:power-cycle }
+          - { entity: input_boolean.power_automations_active_power_critical_status_alert, icon: mdi:alert-octagon-outline }
+          - { entity: input_boolean.power_automations_active_power_exceeded_status_alert, icon: mdi:alert-outline }
+          - { entity: input_number.power_automations_wait_active_power_alert, icon: mdi:timer-sand }
+          - { entity: input_number.power_automations_active_power_critical_alert, icon: mdi:chart-bell-curve }
+          - { entity: input_number.power_automations_active_power_exceeded_alert, icon: mdi:chart-bell-curve }
+      - type: list
+        title: Priorità carichi
+        items:
+          - { entity: input_select.carico_1, icon: mdi:numeric-1-circle }
+          - { entity: input_select.carico_2, icon: mdi:numeric-2-circle }
+          - { entity: input_select.carico_3, icon: mdi:numeric-3-circle }
+          - { entity: input_select.carico_4, icon: mdi:numeric-4-circle }
+          - { entity: input_select.carico_5, icon: mdi:numeric-5-circle }
+          - { entity: input_select.carico_6, icon: mdi:numeric-6-circle }
+          - { entity: input_select.carico_7, icon: mdi:numeric-7-circle }
+          - { entity: input_select.carico_8, icon: mdi:numeric-8-circle }
+          - { entity: input_select.carico_9, icon: mdi:numeric-9-circle }
+          - { entity: input_select.carico_10, icon: mdi:numeric-10-circle }
+
+  # ---------- chi consuma adesso ----------
   - type: list
     title: Grandi consumatori
     meta: count
-    query: { domain: sensor, unit: W, min: 0.1, sort: -value, limit: 10, exclude: [$energy.power, $energy.solar, $energy.batteryPower] }
+    query: { domain: sensor, unit: W, min: 0.1, sort: -value, limit: 10, exclude: [sensor.energy_power_sh2, sensor.potenza_carichi_sospesa] }
     row: { icon: mdi:power-plug-outline, decimals: 0, highlight: { above: 100 } }
