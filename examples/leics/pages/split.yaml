@@ -1,0 +1,163 @@
+# Pagina "Split Settings": la vista Lovelace "Climatizzazione" (dashboard-split) rifatta con i blocchi LEICS.
+# Va in /config/www/leics/pages/split.yaml e in site.yaml (pages: e menu:). URL: /leics/split
+#
+# Header, navigazione, sfondo e card_mod della vista originale non servono: li fa già il pannello.
+# Le card custom senza equivalente (hacasa-timer-card, scheduler-card, hacasa-schedule-editor) sono
+# sostituite da righe con gli stessi helper, più un collegamento alla vista originale dove serve.
+
+title: Split Settings
+description: clima, stagione, soglie, timer e programmi
+icon: mdi:air-conditioner
+ha: /dashboard-split/split
+
+# Come l'eyebrow di hacasa_page_title. {{ }} = template di Home Assistant (solo utenti amministratori).
+sub: >-
+  Split {{ expand('climate.soggiorno','climate.camera','climate.studio')
+  | rejectattr('state','in',['off','unavailable','unknown']) | list | count }} attivi
+  · {{ expand('climate.soggiorno','climate.camera','climate.studio')
+  | map(attribute='attributes.current_temperature') | select('number') | list | average(0) | round(1) }}° interni
+
+blocks:
+  # ---------- riepilogo (le hacasa_metric) ----------
+  - type: kpis
+    items:
+      - label: Attivi
+        name: split accesi
+        icon: mdi:air-conditioner
+        value: "{{ expand('climate.soggiorno','climate.camera','climate.studio') | rejectattr('state','in',['off','unavailable','unknown']) | list | count }}"
+        unit: "/ 3"
+        highlight: "{{ expand('climate.soggiorno','climate.camera','climate.studio') | rejectattr('state','in',['off','unavailable','unknown']) | list | count > 0 }}"
+      - label: Media
+        name: temperatura interna
+        icon: mdi:thermometer
+        value: "{{ expand('climate.soggiorno','climate.camera','climate.studio') | map(attribute='attributes.current_temperature') | select('number') | list | average(0) | round(1) }}"
+        unit: "°"
+      - label: Stagione
+        name: modalità automatica
+        icon: mdi:weather-partly-snowy
+        value: >-
+          {% set e = is_state('input_boolean.on_off_estate','on') %}{% set i = is_state('input_boolean.on_off_inverno','on') %}{{ 'Estate + Inverno' if e and i else 'Estate' if e else 'Inverno' if i else 'Manuale' }}
+      - label: Programmi
+        name: automazioni stanze attive
+        icon: mdi:robot-outline
+        value: "{{ expand('input_boolean.automazioni_soggiorno','input_boolean.automazioni_camera','input_boolean.automazioni_studio') | selectattr('state','eq','on') | list | count }}"
+        unit: "/ 3"
+
+  # ---------- stagione (Estate / Inverno): tocco = accende / spegne ----------
+  - type: heading
+    text: Stagione
+  - type: pills
+    items:
+      - { entity: input_boolean.on_off_estate, name: Estate, icon: mdi:weather-sunny }
+      - { entity: input_boolean.on_off_inverno, name: Inverno, icon: mdi:snowflake }
+
+  # ---------- ambienti (le hacasa-nova-thermostat): temperatura attuale, modalità e obiettivo.
+  #            Tocco = dialogo di Home Assistant per cambiare modalità e temperatura ----------
+  - type: heading
+    text: Ambienti
+  - type: kpis
+    items:
+      - { entity: climate.soggiorno, attribute: current_temperature, unit: "°", decimals: 1, name: Soggiorno, label: "[[ climate.soggiorno ]] · [[ climate.soggiorno.temperature ]]°", icon: mdi:sofa, highlight: { state_not: [off, unavailable, unknown] } }
+      - { entity: climate.camera, attribute: current_temperature, unit: "°", decimals: 1, name: Camera, label: "[[ climate.camera ]] · [[ climate.camera.temperature ]]°", icon: mdi:bed, highlight: { state_not: [off, unavailable, unknown] } }
+      - { entity: climate.studio, attribute: current_temperature, unit: "°", decimals: 1, name: Cameretta, label: "[[ climate.studio ]] · [[ climate.studio.temperature ]]°", icon: mdi:teddy-bear, highlight: { state_not: [off, unavailable, unknown] } }
+      - { entity: climate.termostato_bagno, attribute: current_temperature, unit: "°", decimals: 1, name: Bagno, label: "[[ climate.termostato_bagno ]] · [[ climate.termostato_bagno.temperature ]]°", icon: mdi:heating-coil, highlight: { state_not: [off, unavailable, unknown] } }
+
+  # ---------- temperature e soglie (pop-up #split-temperature) ----------
+  - type: heading
+    text: Temperature e soglie
+  - type: list
+    title: Inverno
+    items:
+      - { entity: input_number.temperatura_target_inverno, name: Temperatura target, sub: obiettivo da raggiungere, icon: mdi:target }
+      - { entity: input_number.temperatura_accensione_inverno, name: Temperatura accensione, sub: sotto questa soglia si accende, icon: mdi:thermometer-chevron-down }
+      - { entity: input_number.impostazione_temperatura_inverno, name: Temperatura impostata, sub: valore inviato allo split, icon: mdi:thermostat }
+  - type: list
+    title: Estate
+    items:
+      - { entity: input_number.temperatura_target_estate, name: Temperatura target, sub: obiettivo da raggiungere, icon: mdi:target }
+      - { entity: input_number.temperatura_accensione_estate, name: Temperatura accensione, sub: sopra questa soglia si accende, icon: mdi:thermometer-chevron-up }
+      - { entity: input_number.impostazione_temperatura_estate, name: Temperatura impostata, sub: valore inviato allo split, icon: mdi:thermostat }
+  - type: list
+    title: Diagnostica
+    items:
+      - { entity: input_boolean.debug_climate_logs, name: Log climatizzazione, icon: mdi:bug-outline }
+
+  # ---------- timer AC (pop-up #clima-timer). Tocco sul timer = dialogo di HA con avvia / pausa / annulla ----------
+  - type: heading
+    text: Timer AC
+  - type: list
+    title: Timer 1
+    items:
+      - { entity: input_select.ac_list, name: Split, icon: mdi:air-conditioner }
+      - { entity: input_select.lista_modalita_hvac, name: Modalità, icon: mdi:tune-variant }
+      - { entity: input_datetime.ac_timer, name: Durata, icon: mdi:timer-cog-outline }
+      - { entity: timer.timer_ac_soggiorno, name: Stato timer, icon: mdi:timer-outline }
+  - type: list
+    title: Timer 2
+    items:
+      - { entity: input_select.ac_list_2, name: Split, icon: mdi:air-conditioner }
+      - { entity: input_select.lista_modalita_hvac_lista_2, name: Modalità, icon: mdi:tune-variant }
+      - { entity: input_datetime.ac_timer_2, name: Durata, icon: mdi:timer-cog-outline }
+      - { entity: timer.timer_ac_camera, name: Stato timer, icon: mdi:timer-outline }
+  - type: list
+    title: Timer 3
+    items:
+      - { entity: input_select.ac_list_3, name: Split, icon: mdi:air-conditioner }
+      - { entity: input_select.lista_modalita_hvac_lista_3, name: Modalità, icon: mdi:tune-variant }
+      - { entity: input_datetime.ac_timer_3, name: Durata, icon: mdi:timer-cog-outline }
+      - { entity: timer.timer_ac_cameretta, name: Stato timer, icon: mdi:timer-outline }
+
+  # ---------- programmi e automazioni (pop-up #split-programmi, #clima-automazioni) ----------
+  - type: heading
+    text: Programmi e automazioni
+  - type: list
+    title: Automazioni stanze
+    items:
+      - { entity: input_boolean.automazioni_soggiorno, name: Soggiorno, icon: mdi:sofa }
+      - { entity: input_boolean.automazioni_camera, name: Camera, icon: mdi:bed }
+      - { entity: input_boolean.automazioni_studio, name: Cameretta, icon: mdi:teddy-bear }
+  - type: list
+    title: Schedulazione
+    items:
+      - { entity: input_boolean.automazione_schedulazione_attiva, name: Schedulazione automazioni, icon: mdi:calendar-check }
+      - { entity: schedule.programmazione, name: Calendario, sub: tocca per i dettagli, icon: mdi:calendar-clock }
+      - { entity: input_datetime.accensione_automazioni_split, name: Partenza, icon: mdi:calendar-arrow-right }
+      - { entity: input_datetime.spegnimento_split, name: Arrivo, icon: mdi:calendar-arrow-left }
+  # scheduler-card e hacasa-schedule-editor restano nella vista originale: due scorciatoie
+  - { type: card, name: Schedulatori split, value: scheduler-card, label: apri nella vista Clima, icon: mdi:calendar-month-outline, tap: { navigate: "/dashboard-split/split#split-programmi" } }
+  - { type: card, name: Calendario settimanale, value: editor programmazione, label: apri nella vista Clima, icon: mdi:calendar-edit, tap: { navigate: "/dashboard-split/split#clima-calendario" } }
+
+  # ---------- sensoristica (pop-up #clima-sensori) ----------
+  - type: heading
+    text: Sensoristica
+  - type: list
+    title: Soggiorno
+    items:
+      - { entity: sensor.stanza_temperatura, name: Temperatura, icon: mdi:thermometer }
+      - { entity: sensor.stanza_umidita, name: Umidità, icon: mdi:water-percent }
+  - type: list
+    title: Camera
+    items:
+      - { entity: sensor.stanza_temperatura_2, name: Temperatura, icon: mdi:thermometer }
+      - { entity: sensor.sensore_rm4_mini_camera_humidity, name: Umidità, icon: mdi:water-percent }
+  - type: list
+    title: Cameretta
+    items:
+      - { entity: sensor.sensore_rm4_mini_studio_temperature, name: Temperatura, icon: mdi:thermometer }
+      - { entity: sensor.sensore_rm4_mini_studio_humidity, name: Umidità, icon: mdi:water-percent }
+  - type: list
+    title: Bagno
+    items:
+      - { entity: sensor.stanza_temperatura_3, name: Temperatura, icon: mdi:thermometer }
+      - { entity: sensor.stanza_umidita_3, name: Umidità, icon: mdi:water-percent }
+
+  # ---------- porte e finestre (pop-up #clima-contatti): stato aperta / chiusa e batteria nella stessa riga ----------
+  - type: list
+    title: Porte e finestre
+    meta: "{{ ['binary_sensor.shelly_blu_door_window_dc2b_window','binary_sensor.shelly_blu_door_window_919e_window','binary_sensor.shelly_blu_door_window_17a0_window','binary_sensor.shelly_blu_door_window_adb1_window','binary_sensor.shelly_blu_door_window_2fb4_window'] | select('is_state','on') | list | count }} aperte"
+    items:
+      - { entity: binary_sensor.shelly_blu_door_window_dc2b_window, name: Porta balcone, sub: "batteria [[ sensor.shelly_blu_door_window_dc2b_battery | 0 ]]%", icon: mdi:door, value: "{{ 'Aperta' if is_state('binary_sensor.shelly_blu_door_window_dc2b_window', 'on') else 'Chiusa' }}", highlight: { state: "on" } }
+      - { entity: binary_sensor.shelly_blu_door_window_919e_window, name: Finestra bagno, sub: "batteria [[ sensor.shelly_blu_door_window_919e_battery | 0 ]]%", icon: mdi:window-closed, value: "{{ 'Aperta' if is_state('binary_sensor.shelly_blu_door_window_919e_window', 'on') else 'Chiusa' }}", highlight: { state: "on" } }
+      - { entity: binary_sensor.shelly_blu_door_window_17a0_window, name: Finestra cucina, sub: "batteria [[ sensor.shelly_blu_door_window_17a0_battery | 0 ]]%", icon: mdi:window-closed, value: "{{ 'Aperta' if is_state('binary_sensor.shelly_blu_door_window_17a0_window', 'on') else 'Chiusa' }}", highlight: { state: "on" } }
+      - { entity: binary_sensor.shelly_blu_door_window_adb1_window, name: Finestra camera, sub: "batteria [[ sensor.shelly_blu_door_window_adb1_battery | 0 ]]%", icon: mdi:window-closed, value: "{{ 'Aperta' if is_state('binary_sensor.shelly_blu_door_window_adb1_window', 'on') else 'Chiusa' }}", highlight: { state: "on" } }
+      - { entity: binary_sensor.shelly_blu_door_window_2fb4_window, name: Finestra cameretta, sub: "batteria [[ sensor.shelly_blu_door_window_2fb4_battery | 0 ]]%", icon: mdi:window-closed, value: "{{ 'Aperta' if is_state('binary_sensor.shelly_blu_door_window_2fb4_window', 'on') else 'Chiusa' }}", highlight: { state: "on" } }
